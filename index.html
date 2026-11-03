@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rooted Bible</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+ 
+    body {
+      background: #c5c9c6;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: #222;
+    }
+ 
+    /* ---------- Menu bar ---------- */
+    .menu-bar {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: #ffffff;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    }
+ 
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 22px;
+      font-weight: bold;
+      color: #333;
+    }
+ 
+    .logo img {
+      height: 44px;
+      width: auto;
+      border-radius: 6px;
+      display: block;
+    }
+ 
+    .menu-links {
+      display: flex;
+      gap: 20px;
+      list-style: none;
+    }
+ 
+    .menu-links a {
+      text-decoration: none;
+      color: #444;
+      font-size: 16px;
+    }
+ 
+    .menu-links a:hover,
+    .menu-links a.active {
+      color: #000;
+      border-bottom: 2px solid #000;
+    }
+ 
+    /* ---------- Page layout ---------- */
+    main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 36px 16px 56px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+ 
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 28px 24px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+ 
+    .label {
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #777;
+      margin-bottom: 6px;
+    }
+ 
+    .small-date {
+      font-size: 13px;
+      color: #999;
+    }
+ 
+    .button {
+      display: inline-block;
+      font-family: inherit;
+      font-size: 15px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid #222;
+      background: #222;
+      color: #fff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+ 
+    .button:hover { background: #000; }
+ 
+    .button.light {
+      background: #fff;
+      color: #222;
+    }
+ 
+    .button.light:hover { background: #f2f3f2; }
+ 
+    .button:focus-visible,
+    .tile:focus-visible {
+      outline: 2px solid #222;
+      outline-offset: 2px;
+    }
+ 
+    /* ---------- Verse of the Day ---------- */
+    .daily-verse {
+      max-width: 640px;
+      width: 100%;
+      margin: 0 auto;
+      text-align: center;
+    }
+ 
+    .verse-text {
+      font-size: 22px;
+      line-height: 1.6;
+      font-style: italic;
+      margin: 18px 0 14px;
+    }
+ 
+    .verse-ref {
+      font-size: 16px;
+      font-weight: bold;
+      color: #444;
+      margin-bottom: 20px;
+    }
+ 
+    .verse-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+ 
+    /* ---------- Video ---------- */
+    .home-video video {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      background: #8f9590;
+    }
+ 
+    /* ---------- Reading plan ---------- */
+    .plan-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+ 
+    .plan-title {
+      font-size: 28px;
+      font-weight: normal;
+    }
+ 
+    .plan-day {
+      font-size: 14px;
+      color: #777;
+      font-variant-numeric: tabular-nums;
+    }
+ 
+    .progress {
+      height: 10px;
+      border-radius: 5px;
+      background: #e6e8e6;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+ 
+    .progress-fill {
+      height: 100%;
+      background: #3f5a45;
+      border-radius: 5px;
+    }
+ 
+    .plan-note {
+      font-size: 14px;
+      color: #777;
+      margin-bottom: 20px;
+    }
+ 
+    /* ---------- Popular passages ---------- */
+    .section-head {
+      margin-bottom: 16px;
+    }
+ 
+    .section-head h2 {
+      font-size: 24px;
+      font-weight: normal;
+    }
+ 
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+    }
+ 
+    .tile {
+      display: block;
+      background: #f2f3f2;
+      border-radius: 10px;
+      padding: 16px;
+      text-decoration: none;
+      color: #222;
+      transition: background 0.15s;
+    }
+ 
+    .tile:hover { background: #e2e5e3; }
+ 
+    .tile strong {
+      display: block;
+      font-size: 17px;
+      margin-bottom: 4px;
+    }
+ 
+    .tile span {
+      font-size: 14px;
+      color: #6b716d;
+      line-height: 1.4;
+    }
+ 
+    /* ---------- Bible at a glance ---------- */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      text-align: center;
+    }
+ 
+    .stat {
+      padding: 14px 8px;
+    }
+ 
+    .stat-number {
+      display: block;
+      font-size: 34px;
+      color: #3f5a45;
+      font-variant-numeric: tabular-nums;
+    }
+ 
+    .stat-label {
+      font-size: 14px;
+      color: #6b716d;
+    }
+ 
+    /* ---------- Footer ---------- */
+    .footer {
+      text-align: center;
+      font-size: 14px;
+      color: #4d534f;
+      font-style: italic;
+    }
+ 
+    @media (prefers-reduced-motion: reduce) {
+      .tile { transition: none; }
+    }
+  </style>
+</head>
+<body>
+ 
+  <nav class="menu-bar">
+    <div class="logo"><img src="images/rooted-logo-white.jpg" alt="Rooted logo">Rooted</div>
+    <ul class="menu-links">
+      <li><a href="index.html" class="active">Home</a></li>
+      <li><a href="read.html">Read</a></li>
+      <li><a href="search.html">Search</a></li>
+      <li><a href="news.html">News</a></li>
+    </ul>
+  </nav>
+ 
+  <main>
+ 
+    <!-- Verse of the Day -->
+    <section class="card daily-verse">
+      <p class="label">Verse of the Day</p>
+      <p class="small-date" id="verse-date"></p>
+      <p class="verse-text" id="verse-text"></p>
+      <p class="verse-ref" id="verse-ref"></p>
+      <div class="verse-actions">
+        <a class="button" id="verse-read" href="read.html">Read the Chapter</a>
+        <button class="button light" id="verse-copy" type="button">Copy Verse</button>
+      </div>
+    </section>
+ 
+    <!-- Video -->
+    <section class="home-video">
+      <video src="images/home-video.mp4"
+             autoplay muted loop playsinline></video>
+    </section>
+ 
+    <!-- Bible in a Year -->
+    <section class="card">
+      <p class="label">Bible in a Year</p>
+      <div class="plan-top">
+        <h2 class="plan-title" id="plan-reading"></h2>
+        <p class="plan-day" id="plan-day"></p>
+      </div>
+      <div class="progress"><div class="progress-fill" id="plan-bar"></div></div>
+      <p class="plan-note">Everyone reads the same chapters each day. Finish the whole Bible by December 31.</p>
+      <a class="button" id="plan-start" href="read.html">Start Today's Reading</a>
+    </section>
+ 
+    <!-- Popular passages -->
+    <section class="card">
+      <div class="section-head">
+        <p class="label">Start Here</p>
+        <h2>Well-Loved Passages</h2>
+      </div>
+      <div class="tiles">
+        <a class="tile" href="read.html#protestant-Genesis-1"><strong>Genesis 1</strong><span>In the beginning: the story of creation</span></a>
+        <a class="tile" href="read.html#protestant-Psalms-23"><strong>Psalm 23</strong><span>The Lord is my shepherd</span></a>
+        <a class="tile" href="read.html#protestant-Proverbs-3"><strong>Proverbs 3</strong><span>Trust in the Lord with all your heart</span></a>
+        <a class="tile" href="read.html#protestant-Isaiah-40"><strong>Isaiah 40</strong><span>Mounting up with wings as eagles</span></a>
+        <a class="tile" href="read.html#protestant-Matthew-5"><strong>Matthew 5</strong><span>The Sermon on the Mount and the Beatitudes</span></a>
+        <a class="tile" href="read.html#protestant-John-3"><strong>John 3</strong><span>For God so loved the world</span></a>
+        <a class="tile" href="read.html#protestant-Romans-8"><strong>Romans 8</strong><span>Nothing can separate us from the love of God</span></a>
+        <a class="tile" href="read.html#protestant-1Corinthians-13"><strong>1 Corinthians 13</strong><span>Love is patient, love is kind</span></a>
+      </div>
+    </section>
+ 
+   
+    </section>
+ 
+   
+  </main>
+ 
+  <script>
+    // Use ONE fixed time zone so everyone sees the same verse and reading
+    const TIME_ZONE = "America/New_York";
+ 
+    // ---------- Verse of the Day ----------
+    // List of verses (King James Version). Add as many as you want.
+    // "book" and "chapter" are used for the "Read the Chapter" button.
+    const verses = [
+      { text: "For God so loved the world, that he gave his only begotten Son, that whosoever believeth in him should not perish, but have everlasting life.", ref: "John 3:16", book: "John", chapter: 3 },
+      { text: "The LORD is my shepherd; I shall not want.", ref: "Psalm 23:1", book: "Psalms", chapter: 23 },
+      { text: "I can do all things through Christ which strengtheneth me.", ref: "Philippians 4:13", book: "Philippians", chapter: 4 },
+      { text: "Trust in the LORD with all thine heart; and lean not unto thine own understanding.", ref: "Proverbs 3:5", book: "Proverbs", chapter: 3 },
+      { text: "Be strong and of a good courage; be not afraid, neither be thou dismayed: for the LORD thy God is with thee whithersoever thou goest.", ref: "Joshua 1:9", book: "Joshua", chapter: 1 },
+      { text: "And we know that all things work together for good to them that love God, to them who are the called according to his purpose.", ref: "Romans 8:28", book: "Romans", chapter: 8 },
+      { text: "Thy word is a lamp unto my feet, and a light unto my path.", ref: "Psalm 119:105", book: "Psalms", chapter: 119 },
+      { text: "Come unto me, all ye that labour and are heavy laden, and I will give you rest.", ref: "Matthew 11:28", book: "Matthew", chapter: 11 },
+      { text: "But they that wait upon the LORD shall renew their strength; they shall mount up with wings as eagles.", ref: "Isaiah 40:31", book: "Isaiah", chapter: 40 },
+      { text: "This is the day which the LORD hath made; we will rejoice and be glad in it.", ref: "Psalm 118:24", book: "Psalms", chapter: 118 },
+      { text: "Be still, and know that I am God.", ref: "Psalm 46:10", book: "Psalms", chapter: 46 },
+      { text: "Casting all your care upon him; for he careth for you.", ref: "1 Peter 5:7", book: "1Peter", chapter: 5 },
+      { text: "The LORD bless thee, and keep thee.", ref: "Numbers 6:24", book: "Numbers", chapter: 6 },
+      { text: "Rejoice in the Lord alway: and again I say, Rejoice.", ref: "Philippians 4:4", book: "Philippians", chapter: 4 }
+    ];
+ 
+    // ---------- Books for the Bible in a Year plan ----------
+    // [id used by read.html, name, number of chapters]
+    const books = [
+      ["Genesis", "Genesis", 50],
+      ["Exodus", "Exodus", 40],
+      ["Leviticus", "Leviticus", 27],
+      ["Numbers", "Numbers", 36],
+      ["Deuteronomy", "Deuteronomy", 34],
+      ["Joshua", "Joshua", 24],
+      ["Judges", "Judges", 21],
+      ["Ruth", "Ruth", 4],
+      ["1Samuel", "1 Samuel", 31],
+      ["2Samuel", "2 Samuel", 24],
+      ["1Kings", "1 Kings", 22],
+      ["2Kings", "2 Kings", 25],
+      ["1Chronicles", "1 Chronicles", 29],
+      ["2Chronicles", "2 Chronicles", 36],
+      ["Ezra", "Ezra", 10],
+      ["Nehemiah", "Nehemiah", 13],
+      ["Esther", "Esther", 10],
+      ["Job", "Job", 42],
+      ["Psalms", "Psalms", 150],
+      ["Proverbs", "Proverbs", 31],
+      ["Ecclesiastes", "Ecclesiastes", 12],
+      ["SongofSolomon", "Song of Solomon", 8],
+      ["Isaiah", "Isaiah", 66],
+      ["Jeremiah", "Jeremiah", 52],
+      ["Lamentations", "Lamentations", 5],
+      ["Ezekiel", "Ezekiel", 48],
+      ["Daniel", "Daniel", 12],
+      ["Hosea", "Hosea", 14],
+      ["Joel", "Joel", 3],
+      ["Amos", "Amos", 9],
+      ["Obadiah", "Obadiah", 1],
+      ["Jonah", "Jonah", 4],
+      ["Micah", "Micah", 7],
+      ["Nahum", "Nahum", 3],
+      ["Habakkuk", "Habakkuk", 3],
+      ["Zephaniah", "Zephaniah", 3],
+      ["Haggai", "Haggai", 2],
+      ["Zechariah", "Zechariah", 14],
+      ["Malachi", "Malachi", 4],
+      ["Matthew", "Matthew", 28],
+      ["Mark", "Mark", 16],
+      ["Luke", "Luke", 24],
+      ["John", "John", 21],
+      ["Acts", "Acts", 28],
+      ["Romans", "Romans", 16],
+      ["1Corinthians", "1 Corinthians", 16],
+      ["2Corinthians", "2 Corinthians", 13],
+      ["Galatians", "Galatians", 6],
+      ["Ephesians", "Ephesians", 6],
+      ["Philippians", "Philippians", 4],
+      ["Colossians", "Colossians", 4],
+      ["1Thessalonians", "1 Thessalonians", 5],
+      ["2Thessalonians", "2 Thessalonians", 3],
+      ["1Timothy", "1 Timothy", 6],
+      ["2Timothy", "2 Timothy", 4],
+      ["Titus", "Titus", 3],
+      ["Philemon", "Philemon", 1],
+      ["Hebrews", "Hebrews", 13],
+      ["James", "James", 5],
+      ["1Peter", "1 Peter", 5],
+      ["2Peter", "2 Peter", 3],
+      ["1John", "1 John", 5],
+      ["2John", "2 John", 1],
+      ["3John", "3 John", 1],
+      ["Jude", "Jude", 1],
+      ["Revelation", "Revelation", 22]
+    ];
+ 
+    // Today's date in the fixed time zone
+    function todayParts() {
+      const s = new Intl.DateTimeFormat("en-CA", {
+        timeZone: TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit"
+      }).format(new Date());
+      const [y, m, d] = s.split("-").map(Number);
+      return { y, m, d };
+    }
+ 
+    function showDailyVerse() {
+      const { y, m, d } = todayParts();
+      const dayNumber = Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+      const verse = verses[dayNumber % verses.length];
+ 
+      document.getElementById("verse-text").textContent = "“" + verse.text + "”";
+      document.getElementById("verse-ref").textContent = verse.ref;
+      document.getElementById("verse-read").href = "read.html#protestant-" + verse.book + "-" + verse.chapter;
+      document.getElementById("verse-date").textContent = new Intl.DateTimeFormat("en-US", {
+        timeZone: TIME_ZONE, weekday: "long", month: "long", day: "numeric", year: "numeric"
+      }).format(new Date());
+ 
+      const copyBtn = document.getElementById("verse-copy");
+      copyBtn.onclick = async function () {
+        const text = "“" + verse.text + "” — " + verse.ref;
+        try {
+          await navigator.clipboard.writeText(text);
+          copyBtn.textContent = "Copied!";
+        } catch (e) {
+          copyBtn.textContent = "Couldn't copy";
+        }
+        setTimeout(() => { copyBtn.textContent = "Copy Verse"; }, 1800);
+      };
+    }
+ 
+    // ---------- Bible in a Year ----------
+    function showReadingPlan() {
+      const { y, m, d } = todayParts();
+      const dayOfYear = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 1)) / 86400000) + 1;
+      const daysInYear = (Date.UTC(y + 1, 0, 1) - Date.UTC(y, 0, 1)) / 86400000;
+ 
+      // Every chapter of the Bible in order
+      const chapters = [];
+      for (const [id, name, count] of books) {
+        for (let c = 1; c <= count; c++) chapters.push({ id, name, c });
+      }
+ 
+      // Split the chapters evenly across the days of the year
+      const start = Math.floor((dayOfYear - 1) * chapters.length / daysInYear);
+      const end = Math.max(start + 1, Math.floor(dayOfYear * chapters.length / daysInYear));
+      const todays = chapters.slice(start, end);
+ 
+      // Group today's chapters by book, like "Isaiah 40–42"
+      const parts = [];
+      for (const ch of todays) {
+        const last = parts[parts.length - 1];
+        if (last && last.name === ch.name) last.to = ch.c;
+        else parts.push({ name: ch.name, from: ch.c, to: ch.c });
+      }
+      const label = parts.map(p => p.name + " " + (p.from === p.to ? p.from : p.from + "–" + p.to)).join(", ");
+ 
+      document.getElementById("plan-reading").textContent = label;
+      document.getElementById("plan-day").textContent = "Day " + dayOfYear + " of " + daysInYear;
+      document.getElementById("plan-bar").style.width = (dayOfYear / daysInYear * 100).toFixed(1) + "%";
+      document.getElementById("plan-start").href = "read.html#protestant-" + todays[0].id + "-" + todays[0].c;
+    }
+ 
+    showDailyVerse();
+    showReadingPlan();
+ 
+    // If the page is left open, update every minute so it changes at midnight
+    setInterval(function () {
+      showDailyVerse();
+      showReadingPlan();
+    }, 60000);
+  </script>
+ 
+</body>
+</html>
+ 
