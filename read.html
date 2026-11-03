@@ -270,13 +270,18 @@
       },
       load(path) {
         if (this.waiting[path]) return this.waiting[path];
+        // Protestant files live at the repo root; Catholic and Orthodox files
+        // live in their own folders (e.g. catholic/Genesis.js).
+        const src = path.startsWith("protestant/")
+          ? path.slice("protestant/".length) + ".js"
+          : path + ".js";
         this.waiting[path] = new Promise((resolve, reject) => {
           const s = document.createElement("script");
-          s.src = "data/" + path + ".js";
+          s.src = src;
           s.onload = resolve;
           s.onerror = () => {
             delete this.waiting[path];
-            reject(new Error("Could not load data/" + path + ".js"));
+            reject(new Error("Could not load " + src));
           };
           document.head.appendChild(s);
         });
