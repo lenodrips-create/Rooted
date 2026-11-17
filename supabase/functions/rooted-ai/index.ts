@@ -32,17 +32,87 @@ function getKey(): string | undefined {
   }
 }
 
+// Groq, xAI and OpenRouter all speak the same "chat completions" format.
+type Provider = { name: string; base: string; prefer: string[] };
+const PROVIDERS: Record<string, Provider> = {
+  groq: { name: "Groq", base: "https://api.groq.com/openai/v1", prefer: ["llama-3.3-70b", "gpt-oss-120b", "llama-4", "llama", "qwen", "gpt-oss"] },
+  xai: { name: "xAI", base: "https://api.x.ai/v1", prefer: ["grok-4", "grok-3", "grok"] },
+  openrouter: { name: "OpenRouter", base: "https://openrouter.ai/api/v1", prefer: [] },
+};
+
+function detectProvider(key: string): string | undefined {
+  if (key.startsWith("sk-ant-")) return "anthropic";
+  if (key.startsWith("gsk_")) return "groq";
+  if (key.startsWith("xai-")) return "xai";
+  if (key.startsWith("sk-or-")) return "openrouter";
+}
+
+// Pick a chat model the account can actually use (set AI_MODEL in secrets to override).
+let cachedModel: string | undefined;
+async function pickModel(p: Provider, key: string): Promise<string> {
+  const override = Deno.env.get("AI_MODEL");
+  if (override) return override;
+  if (p.name === "OpenRouter") return "openrouter/auto";
+  if (cachedModel) return cachedModel;
+  const res = await fetch(p.base + "/models", { headers: { Authorization: "Bearer " + key } });
+  if (res.status === 401 || res.status === 403) throw new KeyRejected();
+  if (!res.ok) throw new Error("models list failed: " + res.status);
+  const ids: string[] = ((await res.json()).data ?? [])
+    .map((m: any) => String(m.id))
+    .filter((id: string) => !/whisper|tts|guard|image|imagine|vision|embed|audio|speech|playai|compound|safeguard/i.test(id))
+    .sort()
+    .reverse();
+  for (const want of p.prefer) {
+    const hit = ids.find((id) => id.includes(want));
+    if (hit) return (cachedModel = hit);
+  }
+  if (!ids.length) throw new Error("no chat models available");
+  return (cachedModel = ids[0]);
+}
+
+class KeyRejected extends Error {}
+
+async function askOpenAICompatible(p: Provider, key: string, messages: { role: string; content: string }[]) {
+  const model = await pickModel(p, key);
+  const res = await fetch(p.base + "/chat/completions", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: 1500,
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+    }),
+  });
+  if (res.status === 401 || res.status === 403) throw new KeyRejected();
+  if (res.status === 429) return reply({ error: "The AI is busy right now. Please try again in a minute." }, 429);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error(p.name + " error", res.status, model, JSON.stringify(data).slice(0, 500));
+    return reply({ error: "The AI service had a problem (" + res.status + "). Please try again." }, 502);
+  }
+  const answer = String(data.choices?.[0]?.message?.content ?? "")
+    .replace(/<think>[\s\S]*?<\/think>/g, "")
+    .trim();
+  if (!answer) return reply({ error: "No answer came back." }, 502);
+  return reply({ answer });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
-  if (req.method === "GET") return reply({ ok: true, message: "Rooted AI is running.", keyFound: !!getKey() });
+  if (req.method === "GET") {
+    const k = getKey();
+    const prov = k ? detectProvider(k) : undefined;
+    return reply({ ok: true, message: "Rooted AI is running.", keyFound: !!k, provider: prov ? (PROVIDERS[prov]?.name ?? "Anthropic") : "unknown" });
+  }
   if (req.method !== "POST") return reply({ error: "Use POST." }, 405);
 
   const apiKey = getKey();
   if (!apiKey) {
     return reply({ error: "The AI key isn't set. Add it in Supabase → Edge Functions → Secrets as ROOTED_API." }, 500);
   }
-  if (!apiKey.startsWith("sk-ant-")) {
-    return reply({ error: "The saved key isn't an Anthropic (Claude) key, which this AI needs." }, 500);
+  const provider = detectProvider(apiKey);
+  if (!provider) {
+    return reply({ error: "The saved key wasn't recognised. Use a key from Anthropic, Groq, xAI or OpenRouter." }, 500);
   }
 
   let messages: Anthropic.MessageParam[];
@@ -58,6 +128,18 @@ Deno.serve(async (req) => {
   while (messages.length && messages[0].role !== "user") messages.shift();
   if (!messages.length || messages[messages.length - 1].role !== "user") {
     return reply({ error: "Please ask a question." }, 400);
+  }
+
+  if (provider !== "anthropic") {
+    try {
+      return await askOpenAICompatible(PROVIDERS[provider], apiKey, messages as any);
+    } catch (err) {
+      if (err instanceof KeyRejected) {
+        return reply({ error: "The AI key was rejected. Check the key saved in Supabase." }, 500);
+      }
+      console.error(err);
+      return reply({ error: "Something went wrong reaching the AI." }, 502);
+    }
   }
 
   const client = new Anthropic({ apiKey });
