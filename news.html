@@ -196,6 +196,9 @@
 
     const list = document.getElementById("news-list");
 
+    // Stories about Jewish topics are left out of the list
+    const SKIP = /\b(jew|jews|jewish\w*|judaism|judaic|rabbi|rabbis|rabbinic\w*|synagogue\w*|torah|talmud\w*|hanukkah|chanukah|passover|yom kippur|rosh hashanah|sukkot|purim|shabbat|kosher|zionis\w*|antisemit\w*|anti-semit\w*|holocaust|israel|israeli|israelis|hasidic|orthodox jew\w*)\b/i;
+
     document.getElementById("news-date").textContent = new Intl.DateTimeFormat("en-US", {
       timeZone: "America/New_York",
       weekday: "long", month: "long", day: "numeric", year: "numeric"
@@ -217,6 +220,7 @@
       try {
         const res = await fetch(NEWS_URL);
         const data = await res.json();
+        if (data.stories) data.stories = data.stories.filter(story => !SKIP.test(story.title || ""));
         if (!data.stories || data.stories.length === 0) {
           showStatus("No stories right now. Check back later today.");
           return;

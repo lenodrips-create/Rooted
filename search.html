@@ -213,6 +213,39 @@
       outline-offset: -2px;
     }
 
+    [hidden] { display: none !important; }
+
+    /* Sign-in screen */
+    .login { max-width: 380px; margin: 8px auto 4px; }
+    .login h2 { font-size: 22px; font-weight: normal; margin-bottom: 4px; }
+    .login .login-sub { color: #6b716d; font-size: 15px; margin-bottom: 18px; }
+    .login label { display: block; font-size: 14px; color: #444; margin: 12px 0 5px; }
+    .login input {
+      width: 100%;
+      font-family: inherit;
+      font-size: 16px;
+      padding: 11px 12px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+    }
+    .login input:focus-visible { outline: 2px solid #222; outline-offset: 1px; }
+    .login .send { width: 100%; margin-top: 18px; }
+    .login-switch { margin-top: 14px; font-size: 14px; color: #6b716d; text-align: center; }
+    .link-btn {
+      font-family: inherit;
+      font-size: inherit;
+      background: none;
+      border: none;
+      color: #222;
+      text-decoration: underline;
+      cursor: pointer;
+      padding: 0;
+    }
+    .login-msg { margin-top: 14px; font-size: 14px; padding: 10px 12px; border-radius: 8px; }
+    .login-msg.error { background: #f6e7e4; color: #8a3324; }
+    .login-msg.ok { background: #e8f0ea; color: #2d5a3a; }
+    .signed-in { font-size: 13px; color: #6b716d; margin-bottom: 10px; overflow-wrap: anywhere; }
+
     .fine-print { margin-top: 14px; font-size: 13px; color: #4d534f; text-align: center; }
  
     /* Phone menu */
@@ -243,11 +276,30 @@
           <p class="label">Bible AI</p>
           <h1>Ask Rooted AI...</h1>
         </div>
-        <div class="chat-tools">
+        <div class="chat-tools" id="chat-tools" hidden>
           <button type="button" class="tool-btn" id="new-chat">New chat</button>
           <button type="button" class="tool-btn" id="history-toggle" aria-expanded="false" aria-controls="history">Past chats</button>
         </div>
       </div>
+
+      <!-- Sign-in screen: shown until the visitor signs in -->
+      <form class="login" id="login" novalidate>
+        <h2 id="login-title">Sign in to chat</h2>
+        <p class="login-sub" id="login-sub">Enter your email and password to use the Bible AI.</p>
+        <label for="login-email">Email</label>
+        <input id="login-email" type="email" autocomplete="email" required>
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" autocomplete="current-password" minlength="6" required>
+        <button class="send" id="login-submit" type="submit">Sign in</button>
+        <p class="login-switch">
+          <span id="login-switch-text">New to Rooted?</span>
+          <button type="button" class="link-btn" id="login-switch">Create an account</button>
+        </p>
+        <p class="login-msg" id="login-msg" role="status" hidden></p>
+      </form>
+
+      <div id="chat-area" hidden>
+      <p class="signed-in"><span id="signed-in-as"></span> · <button type="button" class="link-btn" id="sign-out">Sign out</button></p>
 
       <div class="history" id="history" hidden></div>
 
@@ -264,12 +316,21 @@
         <textarea id="question" placeholder="Type your question…" aria-label="Your question"></textarea>
         <button class="send" id="send" type="submit">Ask</button>
       </form>
+      </div>
     </section>
  
     <p class="fine-print">AI answers can make mistakes. Check them against the Bible itself.</p>
   </main>
  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
   <script>
+    // Sign-in uses Supabase Auth. This key is the project's public (publishable) key,
+    // which is safe to have in the page.
+    const SUPABASE_URL = "https://wvghcoovpibfghwphgik.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_25KehH6q4w5RMTVM3TADAA_hXcTSYVd";
+    const auth = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY).auth;
+    let session = null;
+
     // Bible AI: Supabase Edge Function (supabase/functions/rooted-ai). The API key is stored in Supabase secrets.
     const AI_URL = "https://wvghcoovpibfghwphgik.supabase.co/functions/v1/rooted-ai";
  
@@ -285,7 +346,8 @@
     let busy = false;
 
     // ---------- Past chats, saved in this browser only ----------
-    const STORE_KEY = "rootedChats";
+    // Each signed-in person gets their own list on this device
+    let STORE_KEY = "rootedChats";
     const MAX_CHATS = 50;
 
     function loadChats() {
@@ -442,7 +504,10 @@
           // Sent as plain text so the browser doesn't need an extra permission check first
           res = await fetch(AI_URL, {
             method: "POST",
-            headers: { "Content-Type": "text/plain;charset=UTF-8" },
+            headers: {
+              "Content-Type": "text/plain;charset=UTF-8",
+              "Authorization": "Bearer " + (session ? session.access_token : "")
+            },
             body: JSON.stringify({ messages: messages })
           });
         } catch (e) {
@@ -453,6 +518,10 @@
           data = await res.json();
         } catch (e) {
           throw new Error("the AI worker sent back something unexpected (status " + res.status + "). Make sure the new worker code is deployed.");
+        }
+        if (res.status === 401) {
+          await auth.signOut();
+          throw new Error("please sign in again.");
         }
         if (!res.ok || !data.answer) throw new Error(data.error || "No answer came back.");
         thinking.textContent = data.answer;
@@ -485,6 +554,94 @@
     document.querySelectorAll("#suggestions button").forEach(function (b) {
       b.addEventListener("click", function () { ask(b.textContent); });
     });
+
+    // ---------- Sign in ----------
+    const loginForm = document.getElementById("login");
+    const loginEmail = document.getElementById("login-email");
+    const loginPassword = document.getElementById("login-password");
+    const loginSubmit = document.getElementById("login-submit");
+    const loginMsg = document.getElementById("login-msg");
+    let creating = false; // false = sign in, true = create account
+
+    function loginMessage(text, kind) {
+      loginMsg.textContent = text || "";
+      loginMsg.className = "login-msg " + (kind || "error");
+      loginMsg.hidden = !text;
+    }
+
+    function setMode(create) {
+      creating = create;
+      document.getElementById("login-title").textContent = create ? "Create an account" : "Sign in to chat";
+      document.getElementById("login-sub").textContent = create
+        ? "Choose an email and a password (at least 6 characters)."
+        : "Enter your email and password to use the Bible AI.";
+      loginSubmit.textContent = create ? "Create account" : "Sign in";
+      loginPassword.autocomplete = create ? "new-password" : "current-password";
+      document.getElementById("login-switch-text").textContent = create ? "Already have an account?" : "New to Rooted?";
+      document.getElementById("login-switch").textContent = create ? "Sign in" : "Create an account";
+      loginMessage("");
+    }
+
+    document.getElementById("login-switch").addEventListener("click", function () { setMode(!creating); });
+
+    loginForm.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      const email = loginEmail.value.trim();
+      const password = loginPassword.value;
+      if (!email || !password) return loginMessage("Enter your email and password.");
+      if (password.length < 6) return loginMessage("Your password needs at least 6 characters.");
+
+      loginSubmit.disabled = true;
+      loginMessage("");
+      try {
+        if (creating) {
+          const { data, error } = await auth.signUp({ email, password });
+          if (error) throw error;
+          if (!data.session) {
+            setMode(false);
+            loginMessage("Account created. Check your email for a link to confirm it, then sign in here.", "ok");
+          }
+        } else {
+          const { error } = await auth.signInWithPassword({ email, password });
+          if (error) throw error;
+        }
+      } catch (err) {
+        const m = String(err && err.message || "");
+        if (/invalid login credentials/i.test(m)) loginMessage("That email or password isn't right.");
+        else if (/not confirmed/i.test(m)) loginMessage("Please confirm your email first. Check your inbox for the link.");
+        else if (/already registered/i.test(m)) loginMessage("There's already an account with that email. Sign in instead.");
+        else loginMessage(m || "Something went wrong. Please try again.");
+      } finally {
+        loginSubmit.disabled = false;
+      }
+    });
+
+    document.getElementById("sign-out").addEventListener("click", function () { auth.signOut(); });
+
+    // Show the sign-in screen or the chat, depending on whether someone is signed in
+    function showFor(newSession) {
+      const before = session && session.user.id;
+      session = newSession;
+      const signedIn = !!session;
+      loginForm.hidden = signedIn;
+      document.getElementById("chat-area").hidden = !signedIn;
+      document.getElementById("chat-tools").hidden = !signedIn;
+      if (!signedIn) {
+        loginPassword.value = "";
+        setHistoryOpen(false);
+        return;
+      }
+      document.getElementById("signed-in-as").textContent = "Signed in as " + (session.user.email || "you");
+      if (before !== session.user.id) {
+        STORE_KEY = "rootedChats:" + session.user.id;
+        currentId = null;
+        messages = [];
+        showMessages();
+      }
+    }
+
+    auth.getSession().then(({ data }) => showFor(data.session));
+    auth.onAuthStateChange((_event, newSession) => showFor(newSession));
   </script>
  
 </body>

@@ -281,6 +281,13 @@
     @media (prefers-reduced-motion: reduce) {
       .tile { transition: none; }
     }
+    /* Developer news */
+    .dev-news { list-style: none; }
+    .dev-news li { padding: 14px 0; border-top: 1px solid #e6e8e6; }
+    .dev-news li:first-child { border-top: none; padding-top: 4px; }
+    .dev-news .dev-date { display: block; font-size: 13px; color: #6b716d; margin-bottom: 3px; }
+    .dev-news strong { display: block; font-size: 17px; font-weight: normal; margin-bottom: 3px; }
+    .dev-news p { font-size: 15px; line-height: 1.5; color: #444; }
   </style>
 </head>
 <body>
@@ -343,6 +350,36 @@
         <a class="tile" href="read.html#protestant-Romans-8"><strong>Romans 8</strong><span>Nothing can separate us from the love of God</span></a>
         <a class="tile" href="read.html#protestant-1Corinthians-13"><strong>1 Corinthians 13</strong><span>Love is patient, love is kind</span></a>
       </div>
+    </section>
+
+    <!-- Developer news: add the newest update at the top of the list -->
+    <section class="card">
+      <div class="section-head">
+        <p class="label">Developer News</p>
+        <h2>What's New on Rooted</h2>
+      </div>
+      <ul class="dev-news">
+        <li>
+          <span class="dev-date">November 17, 2026</span>
+          <strong>Sign in to the Bible AI</strong>
+          <p>The Bible AI now asks you to sign in with an email and password before you chat.</p>
+        </li>
+        <li>
+          <span class="dev-date">November 17, 2026</span>
+          <strong>Past chats</strong>
+          <p>Your Bible AI conversations are now saved on your device. Open Past chats to pick up where you left off, or start a New chat.</p>
+        </li>
+        <li>
+          <span class="dev-date">November 17, 2026</span>
+          <strong>More Bible translations</strong>
+          <p>The Protestant Bible now comes in the NLT, BSB, NHEB and ASV, as well as the KJV. Choose one from the new picker on the Read page.</p>
+        </li>
+        <li>
+          <span class="dev-date">November 17, 2026</span>
+          <strong>A Bible-only AI</strong>
+          <p>The Bible AI now answers questions about the Bible only. It won't do schoolwork or answer unrelated questions.</p>
+        </li>
+      </ul>
     </section>
  
    
