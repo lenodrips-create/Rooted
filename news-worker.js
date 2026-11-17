@@ -10,6 +10,9 @@ const FEED_URL =
 
 const MAX_STORIES = 10;
 
+// Stories about Jewish topics are left out of the list
+const SKIP = /\b(jew|jews|jewish\w*|judaism|judaic|rabbi|rabbis|rabbinic\w*|synagogue\w*|torah|talmud\w*|hanukkah|chanukah|passover|yom kippur|rosh hashanah|sukkot|purim|shabbat|kosher|zionis\w*|antisemit\w*|anti-semit\w*|holocaust|israel|israeli|israelis|hasidic|orthodox jew\w*)\b/i;
+
 export default {
   async fetch(request) {
     const headers = {
@@ -26,11 +29,13 @@ export default {
 
       const stories = [];
       const items = xml.match(/<item>[\s\S]*?<\/item>/g) || [];
-      for (const item of items.slice(0, MAX_STORIES)) {
+      for (const item of items) {
+        if (stories.length >= MAX_STORIES) break;
         const title = clean(pick(item, "title")).replace(/\s+-\s+The Epoch Times\s*$/i, "");
         const link = clean(pick(item, "link"));
         const date = clean(pick(item, "pubDate"));
-        if (title && link) stories.push({ title, link, date });
+        const about = title + " " + clean(pick(item, "description"));
+        if (title && link && !SKIP.test(about)) stories.push({ title, link, date });
       }
 
       return new Response(JSON.stringify({ updated: new Date().toISOString(), stories }), { headers });

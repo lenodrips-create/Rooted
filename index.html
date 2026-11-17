@@ -281,6 +281,14 @@
     @media (prefers-reduced-motion: reduce) {
       .tile { transition: none; }
     }
+    /* Developer news */
+    #dev-news-card[hidden] { display: none; }
+    .dev-news { list-style: none; }
+    .dev-news li { padding: 14px 0; border-top: 1px solid #e6e8e6; }
+    .dev-news li:first-child { border-top: none; padding-top: 4px; }
+    .dev-news .dev-date { display: block; font-size: 13px; color: #6b716d; margin-bottom: 3px; }
+    .dev-news strong { display: block; font-size: 17px; font-weight: normal; margin-bottom: 3px; }
+    .dev-news p { font-size: 15px; line-height: 1.5; color: #444; }
   </style>
 </head>
 <body>
@@ -343,6 +351,15 @@
         <a class="tile" href="read.html#protestant-Romans-8"><strong>Romans 8</strong><span>Nothing can separate us from the love of God</span></a>
         <a class="tile" href="read.html#protestant-1Corinthians-13"><strong>1 Corinthians 13</strong><span>Love is patient, love is kind</span></a>
       </div>
+    </section>
+
+    <!-- Developer news: posts come from Supabase. Post new ones from signin.html (linked on the AI page). -->
+    <section class="card" id="dev-news-card">
+      <div class="section-head">
+        <p class="label">Developer News</p>
+        <h2>What's New on Rooted</h2>
+      </div>
+      <ul class="dev-news" id="dev-news"></ul>
     </section>
  
    
@@ -520,6 +537,30 @@
       showDailyVerse();
       showReadingPlan();
     }, 60000);
+
+    // ---------- Developer News (from Supabase) ----------
+    (function () {
+      const list = document.getElementById("dev-news");
+      fetch("https://wvghcoovpibfghwphgik.supabase.co/functions/v1/rooted-devnews")
+        .then(r => r.json())
+        .then(data => {
+          const posts = (data && data.posts) || [];
+          if (!posts.length) { document.getElementById("dev-news-card").hidden = true; return; }
+          for (const p of posts.slice(0, 5)) {
+            const li = document.createElement("li");
+            const date = document.createElement("span");
+            date.className = "dev-date";
+            date.textContent = new Date(p.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+            const title = document.createElement("strong");
+            title.textContent = p.title;
+            const body = document.createElement("p");
+            body.textContent = p.body;
+            li.append(date, title, body);
+            list.appendChild(li);
+          }
+        })
+        .catch(() => { document.getElementById("dev-news-card").hidden = true; });
+    })();
   </script>
  
 </body>

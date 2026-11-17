@@ -213,6 +213,9 @@
       outline-offset: -2px;
     }
 
+    [hidden] { display: none !important; }
+
+
     .fine-print { margin-top: 14px; font-size: 13px; color: #4d534f; text-align: center; }
  
     /* Phone menu */
@@ -243,11 +246,13 @@
           <p class="label">Bible AI</p>
           <h1>Ask Rooted AI...</h1>
         </div>
-        <div class="chat-tools">
+        <div class="chat-tools" id="chat-tools">
           <button type="button" class="tool-btn" id="new-chat">New chat</button>
           <button type="button" class="tool-btn" id="history-toggle" aria-expanded="false" aria-controls="history">Past chats</button>
         </div>
       </div>
+
+      <div id="chat-area">
 
       <div class="history" id="history" hidden></div>
 
@@ -264,9 +269,11 @@
         <textarea id="question" placeholder="Type your question…" aria-label="Your question"></textarea>
         <button class="send" id="send" type="submit">Ask</button>
       </form>
+      </div>
     </section>
  
     <p class="fine-print">AI answers can make mistakes. Check them against the Bible itself.</p>
+    <p class="fine-print"><a href="signin.html" style="color: inherit;">Sign in</a></p>
   </main>
  
   <script>

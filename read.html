@@ -100,6 +100,10 @@
     .crumbs a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
     .crumbs a:hover { border-bottom-color: var(--ink); }
 
+    .pickers { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .copyright { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 18px; }
+
     select {
       padding: 9px 12px;
       font-size: 15px;
@@ -243,11 +247,14 @@
     <section class="card">
       <div class="top-row">
         <div class="crumbs" id="crumbs"></div>
-        <select id="bible-choice" aria-label="Choose a Bible">
-          <option value="protestant">Protestant</option>
-          <option value="catholic">Catholic</option>
-          <option value="orthodox">Orthodox</option>
-        </select>
+        <div class="pickers">
+          <select id="bible-choice" aria-label="Choose a Bible">
+            <option value="protestant">Protestant</option>
+            <option value="catholic">Catholic</option>
+            <option value="orthodox">Orthodox</option>
+          </select>
+          <select id="version-choice" aria-label="Choose a translation"></select>
+        </div>
       </div>
       <div id="view"><p class="status">Loading…</p></div>
     </section>
@@ -290,21 +297,53 @@
     };
 
     const NAMES = { protestant: "Protestant", catholic: "Catholic", orthodox: "Orthodox" };
+
+    // Protestant translations. All share the Protestant book list (books.js).
+    // "protestant" is the KJV at the repo root; the others live in their own folders.
+    // The ESV and NLT are copyrighted, so they are fetched live from their publishers'
+    // services through a Supabase function, one chapter at a time.
+    const VERSIONS = {
+      protestant: { short: "KJV", title: "King James Version (KJV)" },
+      esv: { short: "ESV", title: "English Standard Version (ESV)", remote: true },
+      nlt: { short: "NLT", title: "New Living Translation (NLT)", remote: true },
+      bsb: { short: "BSB", title: "Berean Standard Bible (BSB)" },
+      nheb: { short: "NHEB", title: "New Heart English Bible (NHEB)" },
+      asv: { short: "ASV", title: "American Standard Version (ASV)" }
+    };
+    const TEXT_URL = "https://wvghcoovpibfghwphgik.supabase.co/functions/v1/rooted-esv";
+    const COPYRIGHT = {
+      esv: "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.",
+      nlt: "Scripture quotations are taken from the Holy Bible, New Living Translation, copyright © 1996, 2004, 2015 by Tyndale House Foundation. Used by permission of Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved."
+    };
+
+    // Which Bible (canon) a reading id belongs to: every translation in VERSIONS is Protestant
+    function groupOf(id) { return VERSIONS[id] ? "protestant" : id; }
+    function titleOf(id) { return VERSIONS[id] ? VERSIONS[id].title : BibleData.titles[id]; }
+    function isValid(id) { return !!(NAMES[id] || VERSIONS[id]); }
     const view = document.getElementById("view");
     const crumbs = document.getElementById("crumbs");
     const choice = document.getElementById("bible-choice");
+    const versionChoice = document.getElementById("version-choice");
+    for (const [id, v] of Object.entries(VERSIONS)) {
+      const o = document.createElement("option");
+      o.value = id;
+      o.textContent = v.short;
+      o.title = v.title;
+      versionChoice.appendChild(o);
+    }
 
     function esc(t) {
       return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     // The address looks like #protestant, #protestant-John, or #protestant-John-3
+    // (#esv-John-3, #bsb-John-3 … pick another Protestant translation)
     function readHash() {
       const parts = location.hash.slice(1).split("-");
       let bible = parts[0];
-      if (!NAMES[bible]) {
+      if (!isValid(bible)) {
         bible = "protestant";
-        try { const saved = localStorage.getItem("bibleChoice"); if (NAMES[saved]) bible = saved; } catch (e) {}
+        try { const saved = localStorage.getItem("bibleChoice"); if (isValid(saved)) bible = saved; } catch (e) {}
       }
       return { bible, book: parts[1] || null, chapter: parts[2] ? parseInt(parts[2], 10) : null };
     }
@@ -318,17 +357,20 @@
 
     async function show() {
       const { bible, book, chapter } = readHash();
-      choice.value = bible;
+      const group = groupOf(bible);
+      choice.value = group;
+      versionChoice.hidden = group !== "protestant";
+      if (group === "protestant") versionChoice.value = bible;
       try { localStorage.setItem("bibleChoice", bible); } catch (e) {}
 
       try {
-        await BibleData.load(bible + "/books");
+        await BibleData.load(group + "/books");
       } catch (err) {
         view.innerHTML = '<p class="status">' + esc(err.message) + '. Make sure the data folder is next to read.html.</p>';
         return;
       }
 
-      const list = BibleData.books[bible];
+      const list = BibleData.books[group];
       const info = book ? list.find(b => b.id === book) : null;
 
       if (!info) return showBooks(bible, list);
@@ -338,10 +380,10 @@
 
     // ---------- Screen 1: all the books ----------
     function showBooks(bible, list) {
-      crumbs.innerHTML = "<span>" + NAMES[bible] + " Bible</span>";
+      crumbs.innerHTML = "<span>" + NAMES[groupOf(bible)] + " Bible</span>";
       const hasExtras = list.some(b => b.extra);
       let html = "<h1>Books of the Bible</h1>";
-      html += '<p class="sub">' + list.length + " books · " + esc(BibleData.titles[bible]) + "</p>";
+      html += '<p class="sub">' + list.length + " books · " + esc(titleOf(bible)) + "</p>";
 
       for (const [key, label] of [["OT", "Old Testament"], ["NT", "New Testament"]]) {
         html += '<p class="section-title">' + label + '</p><div class="grid">';
@@ -359,7 +401,7 @@
 
     // ---------- Screen 2: chapters of one book ----------
     function showChapters(bible, info) {
-      crumbs.innerHTML = '<a href="' + link(bible) + '">' + NAMES[bible] + " Bible</a><span>/</span><span>" + esc(info.name) + "</span>";
+      crumbs.innerHTML = '<a href="' + link(bible) + '">' + NAMES[groupOf(bible)] + " Bible</a><span>/</span><span>" + esc(info.name) + "</span>";
       let html = "<h1>" + esc(info.name) + "</h1>";
       html += '<p class="sub">' + info.chapters + (info.chapters === 1 ? " chapter" : " chapters") + "</p>";
       if (bible === "catholic" && info.id === "Psalms") {
@@ -375,24 +417,30 @@
 
     // ---------- Screen 3: reading one chapter ----------
     async function showChapter(bible, list, info, chapter) {
-      crumbs.innerHTML = '<a href="' + link(bible) + '">' + NAMES[bible] + ' Bible</a><span>/</span><a href="' + link(bible, info.id) + '">' + esc(info.name) + "</a>";
+      crumbs.innerHTML = '<a href="' + link(bible) + '">' + NAMES[groupOf(bible)] + ' Bible</a><span>/</span><a href="' + link(bible, info.id) + '">' + esc(info.name) + "</a>";
       view.innerHTML = '<p class="status">Loading ' + esc(info.name) + "…</p>";
 
+      let verses;
       try {
-        await BibleData.load(bible + "/" + info.id);
+        verses = VERSIONS[bible] && VERSIONS[bible].remote
+          ? await loadRemoteChapter(bible, info, chapter)
+          : await loadLocalChapter(bible, info, chapter);
       } catch (err) {
         view.innerHTML = '<p class="status">' + esc(err.message) + "</p>";
         return;
       }
+      // If the reader moved on while this chapter was loading, don't overwrite the new page
+      const now = readHash();
+      if (now.bible !== bible || now.book !== info.id || now.chapter !== chapter) return;
 
-      const verses = BibleData.text[bible + "/" + info.id][chapter - 1];
       let html = "<h1>" + esc(info.name) + " " + chapter + "</h1>";
-      html += '<p class="sub">' + esc(BibleData.titles[bible]) + "</p>";
+      html += '<p class="sub">' + esc(titleOf(bible)) + "</p>";
       html += '<div class="chapter-text">';
       for (const [num, text] of verses) {
         html += "<p><sup>" + num + "</sup>" + esc(text) + "</p>";
       }
       html += "</div>";
+      if (COPYRIGHT[bible]) html += '<p class="copyright">' + esc(COPYRIGHT[bible]) + "</p>";
 
       // Previous / next chapter, moving into the next book when needed
       const i = list.findIndex(b => b.id === info.id);
@@ -412,18 +460,62 @@
       window.scrollTo(0, 0);
     }
 
+    async function loadLocalChapter(bible, info, chapter) {
+      await BibleData.load(bible + "/" + info.id);
+      return BibleData.text[bible + "/" + info.id][chapter - 1];
+    }
+
+    // Copyrighted translations come from the server one chapter at a time
+    const remoteCache = {};
+    async function loadRemoteChapter(bible, info, chapter) {
+      const key = bible + "/" + info.id + "/" + chapter;
+      if (remoteCache[key]) return remoteCache[key];
+      let res, data;
+      try {
+        res = await fetch(TEXT_URL + "?version=" + bible + "&book=" + encodeURIComponent(info.id) + "&chapter=" + chapter);
+        data = await res.json();
+      } catch (e) {
+        throw new Error("Couldn't load the " + VERSIONS[bible].short + " right now. Check your connection and try again.");
+      }
+      if (!res.ok || !Array.isArray(data.verses)) throw new Error(data.error || "Couldn't load this chapter.");
+      return (remoteCache[key] = data.verses);
+    }
+
     // Switching Bibles keeps you in the same book and chapter when that Bible has it
-    choice.addEventListener("change", async function () {
+    async function switchTo(bible) {
       const { book, chapter } = readHash();
-      const bible = choice.value;
-      await BibleData.load(bible + "/books").catch(() => {});
-      const list = BibleData.books[bible] || [];
+      const group = groupOf(bible);
+      await BibleData.load(group + "/books").catch(() => {});
+      const list = BibleData.books[group] || [];
       const info = book ? list.find(b => b.id === book) : null;
       location.hash = info ? link(bible, info.id, chapter && chapter <= info.chapters ? chapter : null) : link(bible);
+    }
+
+    choice.addEventListener("change", function () {
+      let bible = choice.value;
+      // Going back to Protestant uses the translation picked last time
+      if (bible === "protestant" && VERSIONS[versionChoice.value]) bible = versionChoice.value;
+      switchTo(bible);
     });
+    versionChoice.addEventListener("change", function () { switchTo(versionChoice.value); });
 
     window.addEventListener("hashchange", show);
     show();
+
+    // Hide live translations that aren't set up yet (e.g. the ESV before its key is added)
+    fetch(TEXT_URL)
+      .then(r => r.json())
+      .then(data => {
+        const ready = (data && data.versions) || {};
+        for (const [id, v] of Object.entries(VERSIONS)) {
+          if (!v.remote || ready[id]) continue;
+          delete VERSIONS[id];
+          const opt = versionChoice.querySelector('option[value="' + id + '"]');
+          if (opt) opt.remove();
+          if (location.hash.startsWith("#" + id)) switchTo("protestant");
+        }
+      })
+      .catch(() => {});
   </script>
 
 </body>
