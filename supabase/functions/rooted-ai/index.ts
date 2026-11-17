@@ -81,6 +81,23 @@ async function pickModel(p: Provider, key: string): Promise<string> {
 
 class KeyRejected extends Error {}
 
+// Only people signed in on the site (Supabase Auth) may use the AI
+async function isSignedIn(req: Request): Promise<boolean> {
+  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!token) return false;
+  const base = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!base || !anon) return false;
+  try {
+    const res = await fetch(base + "/auth/v1/user", { headers: { Authorization: "Bearer " + token, apikey: anon } });
+    if (!res.ok) return false;
+    const user = await res.json();
+    return !!user?.id;
+  } catch {
+    return false;
+  }
+}
+
 // A first, separate check that only decides whether the question is allowed.
 // It sees the recent conversation but can't be talked into answering anything.
 const GATE_PROMPT = `You are a strict filter for a Bible website's question box. Decide whether the user's LATEST message may be answered.
@@ -154,6 +171,7 @@ Deno.serve(async (req) => {
     return reply({ ok: true, message: "Rooted AI is running.", keyFound: !!k, keyRecognised: !!(k && detectProvider(k)) });
   }
   if (req.method !== "POST") return reply({ error: "Use POST." }, 405);
+  if (!(await isSignedIn(req))) return reply({ error: "Please sign in to use the Bible AI." }, 401);
 
   const apiKey = getKey();
   if (!apiKey) {

@@ -216,7 +216,7 @@
     [hidden] { display: none !important; }
 
     /* Sign-in screen */
-    .login { max-width: 380px; margin: 8px auto 4px; }
+    .login { display: block; max-width: 380px; margin: 8px auto 4px; border-top: none; padding-top: 0; }
     .login h2 { font-size: 22px; font-weight: normal; margin-bottom: 4px; }
     .login .login-sub { color: #6b716d; font-size: 15px; margin-bottom: 18px; }
     .login label { display: block; font-size: 14px; color: #444; margin: 12px 0 5px; }
@@ -322,7 +322,7 @@
     <p class="fine-print">AI answers can make mistakes. Check them against the Bible itself.</p>
   </main>
  
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script>
     // Sign-in uses Supabase Auth. This key is the project's public (publishable) key,
     // which is safe to have in the page.
