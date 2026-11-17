@@ -45,9 +45,82 @@
     .menu-links a.active { color: #000; border-bottom: 2px solid #000; }
  
     main {
-      max-width: 760px;
+      max-width: 1100px;
       margin: 0 auto;
       padding: 32px 16px 48px;
+      display: grid;
+      gap: 20px;
+    }
+
+    .chat-column { min-width: 0; max-width: 760px; width: 100%; margin: 0 auto; }
+
+    /* Past chats: a column on the left on wide screens, a slide-in panel from the left on phones */
+    .sidebar {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 18px 0 8px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .sidebar-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px 10px;
+      border-bottom: 1px solid #eef0ee;
+    }
+
+    .sidebar-head h2 { font-size: 18px; font-weight: normal; }
+
+    .sidebar-close {
+      font-family: inherit;
+      font-size: 22px;
+      line-height: 1;
+      background: none;
+      border: none;
+      color: #444;
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      z-index: 19;
+    }
+
+    @media (min-width: 900px) {
+      main { grid-template-columns: 270px minmax(0, 1fr); align-items: start; }
+      .sidebar {
+        position: sticky;
+        top: 96px;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+      }
+      .chat-column { margin: 0; }
+      #history-toggle, .sidebar-close, .backdrop { display: none !important; }
+    }
+
+    @media (max-width: 899px) {
+      .sidebar {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: min(320px, 85vw);
+        z-index: 20;
+        border-radius: 0 12px 12px 0;
+        overflow-y: auto;
+        transform: translateX(-105%);
+        transition: transform 0.2s ease;
+        visibility: hidden;
+      }
+      .sidebar.open { transform: none; visibility: visible; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .sidebar { transition: none; }
     }
  
     .card {
@@ -166,13 +239,7 @@
     .tool-btn:hover { background: #e2e5e3; }
     .tool-btn[aria-expanded="true"] { background: #222; color: #fff; border-color: #222; }
 
-    .history {
-      border: 1px solid #e6e8e6;
-      border-radius: 10px;
-      margin-bottom: 16px;
-      max-height: 320px;
-      overflow-y: auto;
-    }
+    .history { margin-bottom: 4px; }
 
     .history-empty { color: #6b716d; font-size: 14px; padding: 14px; text-align: center; }
 
@@ -241,6 +308,16 @@
   </nav>
  
   <main>
+    <aside class="sidebar" id="sidebar" aria-label="Past chats">
+      <div class="sidebar-head">
+        <h2>Past chats</h2>
+        <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close past chats">&times;</button>
+      </div>
+      <div class="history" id="history"></div>
+    </aside>
+    <div class="backdrop" id="backdrop" hidden></div>
+
+    <div class="chat-column">
     <section class="card">
       <div class="chat-head">
         <div>
@@ -249,13 +326,11 @@
         </div>
         <div class="chat-tools" id="chat-tools">
           <button type="button" class="tool-btn" id="new-chat">New chat</button>
-          <button type="button" class="tool-btn" id="history-toggle" aria-expanded="false" aria-controls="history">Past chats</button>
+          <button type="button" class="tool-btn" id="history-toggle" aria-expanded="false" aria-controls="sidebar">Past chats</button>
         </div>
       </div>
 
       <div id="chat-area">
-
-      <div class="history" id="history" hidden></div>
 
       <div class="suggestions" id="suggestions">
         <button type="button">What does John 3:16 mean?</button>
@@ -274,6 +349,7 @@
     </section>
  
     <p class="fine-print">AI answers can make mistakes. Check them against the Bible itself.</p>
+    </div>
   </main>
  
   <script>
@@ -317,7 +393,7 @@
         messages: messages.slice()
       };
       saveChats([entry].concat(loadChats().filter(c => c.id !== currentId)));
-      if (!historyBox.hidden) renderHistory();
+      renderHistory();
     }
 
     function formatDate(ms) {
@@ -368,10 +444,17 @@
       }
     }
 
+    // On phones, the past chats panel slides in from the left
+    const sidebar = document.getElementById("sidebar");
+    const backdrop = document.getElementById("backdrop");
     function setHistoryOpen(open) {
-      historyBox.hidden = !open;
+      sidebar.classList.toggle("open", open);
+      backdrop.hidden = !open;
       historyToggle.setAttribute("aria-expanded", String(open));
-      if (open) renderHistory();
+      if (open) {
+        renderHistory();
+        document.getElementById("sidebar-close").focus();
+      }
     }
 
     function showMessages() {
@@ -414,7 +497,13 @@
     }
 
     document.getElementById("new-chat").addEventListener("click", newChat);
-    historyToggle.addEventListener("click", function () { setHistoryOpen(historyBox.hidden); });
+    historyToggle.addEventListener("click", function () { setHistoryOpen(!sidebar.classList.contains("open")); });
+    document.getElementById("sidebar-close").addEventListener("click", function () { setHistoryOpen(false); historyToggle.focus(); });
+    backdrop.addEventListener("click", function () { setHistoryOpen(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && sidebar.classList.contains("open")) { setHistoryOpen(false); historyToggle.focus(); }
+    });
+    renderHistory();
  
     function addMessage(kind, text) {
       const div = document.createElement("div");
