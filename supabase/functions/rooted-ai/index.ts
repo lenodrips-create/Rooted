@@ -81,18 +81,35 @@ async function pickModel(p: Provider, key: string): Promise<string> {
 
 class KeyRejected extends Error {}
 
-// Only people signed in on the site (Supabase Auth) may use the AI
-async function isSignedIn(req: Request): Promise<boolean> {
+// Only visitors who entered the site password may use the AI. They send the pass
+// that the rooted-login function gave them; it is signed with SITE_PASSWORD.
+function b64url(bytes: Uint8Array): string {
+  let out = "";
+  for (const x of bytes) out += String.fromCharCode(x);
+  return btoa(out).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function same(a: string, b: string): boolean {
+  const x = new TextEncoder().encode(a);
+  const y = new TextEncoder().encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
+async function hasSitePass(req: Request): Promise<boolean> {
+  const password = Deno.env.get("SITE_PASSWORD") ?? Deno.env.get("ROOTED_PASSWORD") ?? Deno.env.get("PASSWORD");
+  if (!password) return false;
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (!token) return false;
-  const base = Deno.env.get("SUPABASE_URL");
-  const anon = Deno.env.get("SUPABASE_ANON_KEY");
-  if (!base || !anon) return false;
+  const [payload, sig] = token.split(".");
+  if (!payload || !sig) return false;
   try {
-    const res = await fetch(base + "/auth/v1/user", { headers: { Authorization: "Bearer " + token, apikey: anon } });
-    if (!res.ok) return false;
-    const user = await res.json();
-    return !!user?.id;
+    const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("rooted-site-pass:" + password));
+    const key = await crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const expected = b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload))));
+    if (!same(sig, expected)) return false;
+    const data = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof data.exp === "number" && data.exp * 1000 > Date.now();
   } catch {
     return false;
   }
@@ -171,7 +188,7 @@ Deno.serve(async (req) => {
     return reply({ ok: true, message: "Rooted AI is running.", keyFound: !!k, keyRecognised: !!(k && detectProvider(k)) });
   }
   if (req.method !== "POST") return reply({ error: "Use POST." }, 405);
-  if (!(await isSignedIn(req))) return reply({ error: "Please sign in to use the Bible AI." }, 401);
+  if (!(await hasSitePass(req))) return reply({ error: "Please enter the site password again." }, 401);
 
   const apiKey = getKey();
   if (!apiKey) {
