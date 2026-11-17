@@ -8,7 +8,7 @@ Three Bibles are included and readable side by side:
 
 | Bible      | Translation                                     |
 |------------|-------------------------------------------------|
-| Protestant | King James Version (KJV), plus English Standard Version (ESV), Berean Standard Bible (BSB), New Heart English Bible (NHEB) and American Standard Version (ASV) |
+| Protestant | King James Version (KJV), plus English Standard Version (ESV), New Living Translation (NLT), Berean Standard Bible (BSB), New Heart English Bible (NHEB) and American Standard Version (ASV) |
 | Catholic   | Douay-Rheims Bible (Challoner)                   |
 | Orthodox   | World English Bible (with full Orthodox canon)   |
 
@@ -36,7 +36,7 @@ Rooted/
 │   └── Genesis.js …
 ├── bsb/ nheb/ asv/     Other Protestant translations, one file per book
 │                       (uses the root books.js book list)
-├── supabase/functions/ Server code: rooted-ai (AI search) and rooted-esv (ESV text)
+├── supabase/functions/ Server code: rooted-ai (AI search) and rooted-esv (ESV and NLT text)
 ├── orthodox/           Orthodox book list + one file per book
 │   ├── books.js
 │   └── Genesis.js …
@@ -78,7 +78,14 @@ The Protestant Bible has a second picker for the translation. The address uses
 the translation id instead of `protestant`: `read.html#bsb-John-3`,
 `read.html#esv-John-3` (`protestant` still means the KJV).
 
-The KJV, BSB, NHEB and ASV are public domain and stored as files. The ESV is
-copyrighted, so it is fetched one chapter at a time from Crossway's ESV API by
-the `rooted-esv` Supabase function, which reads the `ESV_API_KEY` secret. The
-ESV copyright notice is shown under every ESV chapter, as the API terms require.
+The KJV, BSB, NHEB and ASV are public domain and stored as files. The ESV and
+NLT are copyrighted, so the `rooted-esv` Supabase function fetches them one
+chapter at a time from their publishers' free (non-commercial) services:
+
+- **ESV** from Crossway's ESV API. Needs the `ESV_API_KEY` secret; until it is
+  set, the reader hides the ESV.
+- **NLT** from Tyndale's NLT API. Works with Tyndale's public test key (limited
+  to about 500 requests a day for the whole site); add an `NLT_API_KEY` secret
+  to raise the limits.
+
+Each chapter shows the publisher's copyright notice, as their terms require.

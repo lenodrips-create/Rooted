@@ -300,16 +300,21 @@
 
     // Protestant translations. All share the Protestant book list (books.js).
     // "protestant" is the KJV at the repo root; the others live in their own folders.
-    // The ESV is copyrighted, so it is fetched live from the ESV API through Supabase.
+    // The ESV and NLT are copyrighted, so they are fetched live from their publishers'
+    // services through a Supabase function, one chapter at a time.
     const VERSIONS = {
       protestant: { short: "KJV", title: "King James Version (KJV)" },
       esv: { short: "ESV", title: "English Standard Version (ESV)", remote: true },
+      nlt: { short: "NLT", title: "New Living Translation (NLT)", remote: true },
       bsb: { short: "BSB", title: "Berean Standard Bible (BSB)" },
       nheb: { short: "NHEB", title: "New Heart English Bible (NHEB)" },
       asv: { short: "ASV", title: "American Standard Version (ASV)" }
     };
-    const ESV_URL = "https://wvghcoovpibfghwphgik.supabase.co/functions/v1/rooted-esv";
-    const ESV_COPYRIGHT = "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.";
+    const TEXT_URL = "https://wvghcoovpibfghwphgik.supabase.co/functions/v1/rooted-esv";
+    const COPYRIGHT = {
+      esv: "Scripture quotations are from the ESV® Bible (The Holy Bible, English Standard Version®), © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.",
+      nlt: "Scripture quotations are taken from the Holy Bible, New Living Translation, copyright © 1996, 2004, 2015 by Tyndale House Foundation. Used by permission of Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved."
+    };
 
     // Which Bible (canon) a reading id belongs to: every translation in VERSIONS is Protestant
     function groupOf(id) { return VERSIONS[id] ? "protestant" : id; }
@@ -435,7 +440,7 @@
         html += "<p><sup>" + num + "</sup>" + esc(text) + "</p>";
       }
       html += "</div>";
-      if (bible === "esv") html += '<p class="copyright">' + esc(ESV_COPYRIGHT) + "</p>";
+      if (COPYRIGHT[bible]) html += '<p class="copyright">' + esc(COPYRIGHT[bible]) + "</p>";
 
       // Previous / next chapter, moving into the next book when needed
       const i = list.findIndex(b => b.id === info.id);
@@ -467,7 +472,7 @@
       if (remoteCache[key]) return remoteCache[key];
       let res, data;
       try {
-        res = await fetch(ESV_URL + "?book=" + encodeURIComponent(info.id) + "&chapter=" + chapter);
+        res = await fetch(TEXT_URL + "?version=" + bible + "&book=" + encodeURIComponent(info.id) + "&chapter=" + chapter);
         data = await res.json();
       } catch (e) {
         throw new Error("Couldn't load the " + VERSIONS[bible].short + " right now. Check your connection and try again.");
@@ -496,6 +501,21 @@
 
     window.addEventListener("hashchange", show);
     show();
+
+    // Hide live translations that aren't set up yet (e.g. the ESV before its key is added)
+    fetch(TEXT_URL)
+      .then(r => r.json())
+      .then(data => {
+        const ready = (data && data.versions) || {};
+        for (const [id, v] of Object.entries(VERSIONS)) {
+          if (!v.remote || ready[id]) continue;
+          delete VERSIONS[id];
+          const opt = versionChoice.querySelector('option[value="' + id + '"]');
+          if (opt) opt.remove();
+          if (location.hash.startsWith("#" + id)) switchTo("protestant");
+        }
+      })
+      .catch(() => {});
   </script>
 
 </body>
