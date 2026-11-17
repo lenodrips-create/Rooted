@@ -81,40 +81,6 @@ async function pickModel(p: Provider, key: string): Promise<string> {
 
 class KeyRejected extends Error {}
 
-// Only visitors who entered the site password may use the AI. They send the pass
-// that the rooted-login function gave them; it is signed with SITE_PASSWORD.
-function b64url(bytes: Uint8Array): string {
-  let out = "";
-  for (const x of bytes) out += String.fromCharCode(x);
-  return btoa(out).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-function same(a: string, b: string): boolean {
-  const x = new TextEncoder().encode(a);
-  const y = new TextEncoder().encode(b);
-  let diff = x.length ^ y.length;
-  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
-  return diff === 0;
-}
-
-async function hasSitePass(req: Request): Promise<boolean> {
-  const password = Deno.env.get("SITE_PASSWORD") ?? Deno.env.get("ROOTED_PASSWORD") ?? Deno.env.get("PASSWORD");
-  if (!password) return false;
-  const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  const [payload, sig] = token.split(".");
-  if (!payload || !sig) return false;
-  try {
-    const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("rooted-site-pass:" + password));
-    const key = await crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-    const expected = b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload))));
-    if (!same(sig, expected)) return false;
-    const data = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof data.exp === "number" && data.exp * 1000 > Date.now();
-  } catch {
-    return false;
-  }
-}
-
 // A first, separate check that only decides whether the question is allowed.
 // It sees the recent conversation but can't be talked into answering anything.
 const GATE_PROMPT = `You are a strict filter for a Bible website's question box. Decide whether the user's LATEST message may be answered.
@@ -188,7 +154,6 @@ Deno.serve(async (req) => {
     return reply({ ok: true, message: "Rooted AI is running.", keyFound: !!k, keyRecognised: !!(k && detectProvider(k)) });
   }
   if (req.method !== "POST") return reply({ error: "Use POST." }, 405);
-  if (!(await hasSitePass(req))) return reply({ error: "Please enter the site password again." }, 401);
 
   const apiKey = getKey();
   if (!apiKey) {

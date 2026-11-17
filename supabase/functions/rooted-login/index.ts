@@ -1,11 +1,11 @@
-// Rooted site password — Supabase Edge Function
-// The whole site is behind one password. The password lives in Supabase
-// (Edge Functions → Secrets) as SITE_PASSWORD and never reaches the browser.
+// Rooted sign-in — Supabase Edge Function
+// Signs the site owner in so they can post Developer News. The password lives in Supabase
+// (Edge Functions → Secrets) as ADMIN_PASSWORD and never reaches the browser.
 //
 //   POST { password }  → { token } if the password is right (the pass lasts 30 days)
 //   GET  with "Authorization: Bearer <token>" → { valid: true/false }
 //
-// Changing SITE_PASSWORD signs everyone out, because old passes stop matching.
+// Changing ADMIN_PASSWORD signs everyone out, because old passes stop matching.
 
 const DAYS = 30;
 
@@ -23,7 +23,7 @@ function reply(body: unknown, status = 200) {
 }
 
 function sitePassword(): string | undefined {
-  for (const name of ["SITE_PASSWORD", "ROOTED_PASSWORD", "PASSWORD"]) {
+  for (const name of ["ADMIN_PASSWORD", "SITE_PASSWORD"]) {
     const v = Deno.env.get(name);
     if (v && v.length) return v;
   }
@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   const password = sitePassword();
   if (!password) {
-    return reply({ error: "The site password isn't set up yet. Add a SITE_PASSWORD secret in Supabase." }, 500);
+    return reply({ error: "The password isn't set up yet. Add an ADMIN_PASSWORD secret in Supabase." }, 500);
   }
 
   if (req.method === "GET") {

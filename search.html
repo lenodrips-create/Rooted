@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <script src="gate.js"></script>
   <title>Rooted Bible AI</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -274,6 +273,7 @@
     </section>
  
     <p class="fine-print">AI answers can make mistakes. Check them against the Bible itself.</p>
+    <p class="fine-print"><a href="signin.html" style="color: inherit;">Sign in</a></p>
   </main>
  
   <script>
@@ -449,10 +449,7 @@
           // Sent as plain text so the browser doesn't need an extra permission check first
           res = await fetch(AI_URL, {
             method: "POST",
-            headers: {
-              "Content-Type": "text/plain;charset=UTF-8",
-              "Authorization": "Bearer " + (window.RootedGate ? window.RootedGate.pass() : "")
-            },
+            headers: { "Content-Type": "text/plain;charset=UTF-8" },
             body: JSON.stringify({ messages: messages })
           });
         } catch (e) {
@@ -463,10 +460,6 @@
           data = await res.json();
         } catch (e) {
           throw new Error("the AI worker sent back something unexpected (status " + res.status + "). Make sure the new worker code is deployed.");
-        }
-        if (res.status === 401) {
-          if (window.RootedGate) window.RootedGate.lock(); // asks for the site password again
-          throw new Error("please enter the site password again.");
         }
         if (!res.ok || !data.answer) throw new Error(data.error || "No answer came back.");
         thinking.textContent = data.answer;
