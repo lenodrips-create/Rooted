@@ -142,6 +142,77 @@
       outline-offset: 2px;
     }
  
+    .chat-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: flex-start;
+      justify-content: space-between;
+    }
+
+    .chat-tools { display: flex; gap: 8px; }
+
+    .tool-btn {
+      font-family: inherit;
+      font-size: 14px;
+      background: #f2f3f2;
+      color: #333;
+      border: 1px solid #e2e5e3;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    .tool-btn:hover { background: #e2e5e3; }
+    .tool-btn[aria-expanded="true"] { background: #222; color: #fff; border-color: #222; }
+
+    .history {
+      border: 1px solid #e6e8e6;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .history-empty { color: #6b716d; font-size: 14px; padding: 14px; text-align: center; }
+
+    .history-item { display: flex; align-items: center; border-bottom: 1px solid #eef0ee; }
+    .history-item:last-child { border-bottom: none; }
+    .history-item.current { background: #f6f7f6; }
+
+    .history-open {
+      flex: 1;
+      min-width: 0;
+      text-align: left;
+      font-family: inherit;
+      background: none;
+      border: none;
+      padding: 11px 14px;
+      cursor: pointer;
+      color: #222;
+    }
+
+    .history-open:hover { background: #f2f3f2; }
+    .history-title { display: block; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-date { display: block; font-size: 12px; color: #6b716d; margin-top: 2px; }
+
+    .history-delete {
+      font-family: inherit;
+      font-size: 13px;
+      background: none;
+      border: none;
+      color: #8a3324;
+      padding: 11px 14px;
+      cursor: pointer;
+    }
+
+    .history-delete:hover { text-decoration: underline; }
+
+    .tool-btn:focus-visible, .history-open:focus-visible, .history-delete:focus-visible {
+      outline: 2px solid #222;
+      outline-offset: -2px;
+    }
+
     .fine-print { margin-top: 14px; font-size: 13px; color: #4d534f; text-align: center; }
  
     /* Phone menu */
@@ -167,9 +238,19 @@
  
   <main>
     <section class="card">
-      <p class="label">Bible AI</p>
-      <h1>Ask Rooted AI...</h1>
-      
+      <div class="chat-head">
+        <div>
+          <p class="label">Bible AI</p>
+          <h1>Ask Rooted AI...</h1>
+        </div>
+        <div class="chat-tools">
+          <button type="button" class="tool-btn" id="new-chat">New chat</button>
+          <button type="button" class="tool-btn" id="history-toggle" aria-expanded="false" aria-controls="history">Past chats</button>
+        </div>
+      </div>
+
+      <div class="history" id="history" hidden></div>
+
       <div class="suggestions" id="suggestions">
         <button type="button">What does John 3:16 mean?</button>
         <button type="button">Verses about anxiety</button>
@@ -196,7 +277,137 @@
     const form = document.getElementById("ask-form");
     const input = document.getElementById("question");
     const sendBtn = document.getElementById("send");
-    const history = [];
+    const suggestions = document.getElementById("suggestions");
+    const historyBox = document.getElementById("history");
+    const historyToggle = document.getElementById("history-toggle");
+    let messages = [];      // the chat on screen
+    let currentId = null;   // its id in the saved list (null until the first answer)
+    let busy = false;
+
+    // ---------- Past chats, saved in this browser only ----------
+    const STORE_KEY = "rootedChats";
+    const MAX_CHATS = 50;
+
+    function loadChats() {
+      try {
+        const list = JSON.parse(localStorage.getItem(STORE_KEY) || "[]");
+        return Array.isArray(list) ? list.filter(c => c && c.id && Array.isArray(c.messages)) : [];
+      } catch (e) { return []; }
+    }
+
+    function saveChats(list) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(list.slice(0, MAX_CHATS))); } catch (e) {}
+    }
+
+    function saveCurrent() {
+      if (!messages.length) return;
+      if (!currentId) currentId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      const first = messages.find(m => m.role === "user");
+      const entry = {
+        id: currentId,
+        title: (first ? first.content : "Chat").replace(/\s+/g, " ").slice(0, 80),
+        updated: Date.now(),
+        messages: messages.slice()
+      };
+      saveChats([entry].concat(loadChats().filter(c => c.id !== currentId)));
+      if (!historyBox.hidden) renderHistory();
+    }
+
+    function formatDate(ms) {
+      const d = new Date(ms);
+      const today = new Date();
+      if (d.toDateString() === today.toDateString()) {
+        return "Today, " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      }
+      return d.toLocaleDateString([], { month: "short", day: "numeric", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+    }
+
+    function renderHistory() {
+      const list = loadChats();
+      historyBox.innerHTML = "";
+      if (!list.length) {
+        const p = document.createElement("p");
+        p.className = "history-empty";
+        p.textContent = "No past chats yet. Your chats are saved on this device after you ask a question.";
+        historyBox.appendChild(p);
+        return;
+      }
+      for (const c of list) {
+        const row = document.createElement("div");
+        row.className = "history-item" + (c.id === currentId ? " current" : "");
+
+        const open = document.createElement("button");
+        open.type = "button";
+        open.className = "history-open";
+        const title = document.createElement("span");
+        title.className = "history-title";
+        title.textContent = c.title;
+        const date = document.createElement("span");
+        date.className = "history-date";
+        const asked = c.messages.filter(m => m.role === "user").length;
+        date.textContent = formatDate(c.updated) + " · " + asked + (asked === 1 ? " question" : " questions");
+        open.append(title, date);
+        open.addEventListener("click", function () { openChat(c.id); });
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "history-delete";
+        del.textContent = "Delete";
+        del.setAttribute("aria-label", "Delete chat: " + c.title);
+        del.addEventListener("click", function () { deleteChat(c.id); });
+
+        row.append(open, del);
+        historyBox.appendChild(row);
+      }
+    }
+
+    function setHistoryOpen(open) {
+      historyBox.hidden = !open;
+      historyToggle.setAttribute("aria-expanded", String(open));
+      if (open) renderHistory();
+    }
+
+    function showMessages() {
+      chat.innerHTML = "";
+      for (const m of messages) addMessage(m.role === "user" ? "user" : "ai", m.content);
+      suggestions.hidden = messages.length > 0;
+    }
+
+    function openChat(id) {
+      if (busy) return;
+      const c = loadChats().find(x => x.id === id);
+      if (!c) return renderHistory();
+      currentId = c.id;
+      messages = c.messages.slice();
+      showMessages();
+      setHistoryOpen(false);
+      input.focus();
+    }
+
+    function newChat() {
+      if (busy) return;
+      currentId = null;
+      messages = [];
+      showMessages();
+      setHistoryOpen(false);
+      input.focus();
+    }
+
+    function deleteChat(id) {
+      if (!confirm("Delete this chat? This can't be undone.")) return;
+      saveChats(loadChats().filter(c => c.id !== id));
+      if (id === currentId && !busy) {
+        currentId = null;
+        messages = [];
+        showMessages();
+      } else if (id === currentId) {
+        currentId = null; // it will be saved again as a new chat if the answer arrives
+      }
+      renderHistory();
+    }
+
+    document.getElementById("new-chat").addEventListener("click", newChat);
+    historyToggle.addEventListener("click", function () { setHistoryOpen(historyBox.hidden); });
  
     function addMessage(kind, text) {
       const div = document.createElement("div");
@@ -216,10 +427,12 @@
         return;
       }
  
-      document.getElementById("suggestions").hidden = true;
+      if (busy) return;
+      suggestions.hidden = true;
       addMessage("user", question);
-      history.push({ role: "user", content: question });
+      messages.push({ role: "user", content: question });
       input.value = "";
+      busy = true;
       sendBtn.disabled = true;
       const thinking = addMessage("ai", "Thinking…");
  
@@ -230,7 +443,7 @@
           res = await fetch(AI_URL, {
             method: "POST",
             headers: { "Content-Type": "text/plain;charset=UTF-8" },
-            body: JSON.stringify({ messages: history })
+            body: JSON.stringify({ messages: messages })
           });
         } catch (e) {
           throw new Error("couldn't reach the AI worker. Open " + AI_URL + " in your browser to check that it's running.");
@@ -243,12 +456,14 @@
         }
         if (!res.ok || !data.answer) throw new Error(data.error || "No answer came back.");
         thinking.textContent = data.answer;
-        history.push({ role: "assistant", content: data.answer });
+        messages.push({ role: "assistant", content: data.answer });
+        saveCurrent();
       } catch (err) {
         thinking.remove();
-        history.pop();
+        messages.pop();
         addMessage("error", "Couldn't get an answer: " + err.message);
       } finally {
+        busy = false;
         sendBtn.disabled = false;
         input.focus();
       }
