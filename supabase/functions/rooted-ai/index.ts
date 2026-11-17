@@ -85,7 +85,7 @@ class KeyRejected extends Error {}
 // It sees the recent conversation but can't be talked into answering anything.
 const GATE_PROMPT = `You are a strict filter for a Bible website's question box. Decide whether the user's LATEST message may be answered.
 
-ALLOWED only if it is a genuine question or request about the Bible: its text, verses, books, people, places, history, meaning, or what Scripture teaches (including prayer and faith as taught in the Bible). Short follow-ups like "tell me more" or "what does verse 5 mean" are ALLOWED when the conversation is about the Bible.
+ALLOWED if it is a question or request about the Bible or Christian faith: its text, verses, books, people, places, events, history, meaning, or what Scripture teaches. This includes asking for verses on a topic (for example "verses about anxiety"), what to read, prayer, faith, and how the Bible applies to life. Short follow-ups like "tell me more" or "what does verse 5 mean" are ALLOWED when the conversation is about the Bible. If you are unsure, answer ALLOWED.
 
 SCHOOL if it asks for schoolwork: writing an essay, report, paper, book report, discussion post, homework, worksheet or test answers, or any assignment, even about the Bible.
 
@@ -93,14 +93,19 @@ BLOCKED for everything else, including: any other subject (math, science, coding
 
 Answer with exactly one word: ALLOWED, SCHOOL, or BLOCKED.`;
 
-async function gate(p: Provider, key: string, model: string, messages: { role: string; content: string }[]) {
+// The filter's decision. Only a clear SCHOOL or BLOCKED refuses the question; if the
+// filter fails or its reply can't be read, the question goes on to the main answer,
+// whose instructions also refuse anything that isn't about the Bible.
+type Verdict = "ALLOWED" | "SCHOOL" | "BLOCKED";
+
+async function gate(p: Provider, key: string, model: string, messages: { role: string; content: string }[]): Promise<Verdict> {
   const recent = messages.slice(-5).map((m) => (m.role === "user" ? "User: " : "Assistant: ") + m.content).join("\n\n");
   const res = await fetch(p.base + "/chat/completions", {
     method: "POST",
     headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      max_tokens: 300,
+      max_tokens: 1024,
       temperature: 0,
       messages: [
         { role: "system", content: GATE_PROMPT },
@@ -109,12 +114,17 @@ async function gate(p: Provider, key: string, model: string, messages: { role: s
     }),
   });
   if (res.status === 401 || res.status === 403) throw new KeyRejected();
-  if (!res.ok) return "BLOCKED";
+  if (!res.ok) {
+    console.error("gate request failed", res.status, model, (await res.text()).slice(0, 300));
+    return "ALLOWED";
+  }
   const data = await res.json().catch(() => ({}));
-  const verdict = String(data.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").toUpperCase();
-  if (verdict.includes("SCHOOL")) return "SCHOOL";
-  if (verdict.includes("ALLOWED") && !verdict.includes("BLOCKED")) return "ALLOWED";
-  return "BLOCKED";
+  const raw = String(data.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/g, "").toUpperCase();
+  // Use the last decision word in the reply, in case the model explains itself first
+  const words = raw.match(/\b(ALLOWED|SCHOOL|BLOCKED)\b/g);
+  const verdict: Verdict = words ? (words[words.length - 1] as Verdict) : "ALLOWED";
+  console.log("gate", JSON.stringify({ model, verdict, reply: raw.slice(0, 40), finish: data.choices?.[0]?.finish_reason }));
+  return verdict;
 }
 
 async function askOpenAICompatible(p: Provider, key: string, messages: { role: string; content: string }[]) {
